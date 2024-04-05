@@ -1,0 +1,32 @@
+Apr 01, 2024 5:23:16 PM me.wild.Utils log
+INFO: [PSWrapper] Operating System: Windows 10 v10.0
+Apr 01, 2024 5:23:16 PM me.wild.Utils log
+WARNING: [PSWrapper] No connections and no servers running, shutting down in 2 more minute(s) without a connection.
+Apr 01, 2024 5:23:31 PM me.wild.Utils log
+WARNING: [PSWrapper] No connections and no servers running, shutting down in 2 more minute(s) without a connection.
+Apr 01, 2024 5:23:37 PM me.wild.Utils log
+INFO: [PSWrapper] Starting server: wildmaster84
+Apr 01, 2024 5:23:37 PM me.wild.Utils log
+INFO: [PSWrapper] command: [java, -Xmx2048M, -Xms2048M, -Djline.terminal=jline.UnsupportedTerminal, -Dcom.mojang.eula.agree=true, -jar, folia.jar, --nojline]
+Apr 01, 2024 5:23:37 PM me.wild.Utils log
+INFO: [PSWrapper] path: C:\Users\wildmaster84\Desktop\PlayerServers\plugins\PlayerServers\servers\37b318ac-03d5-4ebc-abf0-f32d3c01650a
+Apr 01, 2024 5:23:37 PM me.wild.Utils log
+INFO: [PSWrapper] starting up...
+Apr 01, 2024 5:23:37 PM me.wild.Utils log
+INFO: [PSWrapper] Starting server within PSWrapper
+Apr 01, 2024 5:23:37 PM me.wild.Utils log
+INFO: [PSWrapper] ERROR: Minecraft 1.19 requires running the server with Java 17 or above. Download Java 17 (or above) from https://adoptium.net/
+Apr 01, 2024 5:23:46 PM me.wild.Utils log
+INFO: [PSWrapper] Invalid command!
+Apr 01, 2024 5:23:47 PM me.wild.Utils log
+WARNING: [PSWrapper] Server "wildmaster84" may be stopped or frozen.
+Apr 01, 2024 5:23:57 PM me.wild.Utils log
+WARNING: [PSWrapper] Server "wildmaster84" may be stopped or frozen.
+Apr 01, 2024 5:23:57 PM me.wild.Utils log
+WARNING: [PSWrapper] Server "wildmaster84" stopped or frozen! Shutting down.
+Apr 01, 2024 5:23:57 PM me.wild.Utils log
+INFO: [PSWrapper] wildmaster84 shut down.
+Apr 01, 2024 5:23:57 PM me.wild.Utils log
+INFO: [PSWrapper] managedServers: {}
+Apr 01, 2024 5:24:01 PM me.wild.Utils log
+WARNING: [PSWrapper] No connections and no servers running, shutting down in 2 more minute(s) without a connection.
