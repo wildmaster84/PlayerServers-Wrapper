@@ -1,82 +1,78 @@
 package me.wild;
 
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
+import java.nio.channels.SocketChannel;
 import java.util.logging.Level;
 
 class ProcessWatcher implements Runnable {
-  private Main main;
-  
-  private Process proc;
-  
-  private OutputStream out;
-  
-  private ManagedServer server;
-  
-  private boolean shutdown;
-  
-  private int frozen;
-  
-  public ProcessWatcher(ManagedServer server, Process proc, OutputStream out) {
-    this.shutdown = false;
-    this.frozen = 0;
-    this.main = Main.getInstance();
-    this.server = server;
-    this.proc = proc;
-    this.out = out;
-  }
-  
-  private void processCheck() {
-    boolean enable = true;
-    if (this.out != null && enable)
-      try {
-        this.out.write(13);
-        this.out.flush();
-      } catch (IOException e) {
-        this.main.ut.log(Level.WARNING, "Server \"" + this.server.getServerName() + "\" may be stopped or frozen.");
-        this.frozen++;
-      }  
-  }
-  
-  public void run() {
-    while (true) {
-      processCheck();
-      if (!this.proc.isAlive()) {
-        if (this.frozen > 1) {
-          this.main.ut.log(Level.WARNING, "Server \"" + this.server.getServerName() + "\" stopped or frozen! Shutting down.");
-          this.shutdown = true;
-        } 
-        if (!this.main.managedServers.containsValue(this.server))
-          this.shutdown = true; 
-        this.frozen++;
-      } else if (this.frozen > 0) {
-        this.frozen--;
-      } 
-      try {
-        this.proc.exitValue();
-        this.out.close();
-        this.shutdown = true;
-      } catch (IllegalThreadStateException illegalThreadStateException) {
-      
-      } catch (IOException iOException) {}
-      if (this.shutdown)
-        break; 
-      try {
-        Thread.sleep(10000L);
-      } catch (InterruptedException e) {
-        e.printStackTrace();
-      } 
-    } 
-    this.main.ut.log(String.valueOf(this.server.getServerName()) + " shut down.");
-    if (this.main.managedServers.containsValue(this.server)) {
-      this.main.managedServers.remove(this.server.getServerName());
-      this.main.ut.log("managedServers: " + this.main.managedServers.toString());
-    } 
-    this.server.killThreads();
-    try {
-      this.server.in.close();
-      this.server.out.close();
-      this.server.errors.close();
-    } catch (IOException iOException) {}
-  }
+    private Main main;
+    private Process proc;
+    private ManagedServer server;
+    private boolean shutdown;
+    private int frozen;
+
+    public ProcessWatcher(ManagedServer server, Process proc) {
+        this.shutdown = false;
+        this.frozen = 0;
+        this.main = Main.getInstance();
+        this.server = server;
+        this.proc = proc;
+    }
+
+    private void processCheck() {
+        try {
+            if (proc.isAlive()) {
+                // Send a no-op command to check if the process is responsive
+                BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(proc.getOutputStream()));
+                writer.write(13); // Sending a carriage return as a no-op
+                writer.flush();
+            }
+        } catch (IOException e) {
+            main.ut.log(Level.WARNING, "Server \"" + server.getServerName() + "\" may be stopped or frozen.");
+            frozen++;
+        }
+    }
+
+    @Override
+    public void run() {
+        while (true) {
+            processCheck();
+            if (!proc.isAlive()) {
+                if (frozen > 5) {
+                    main.ut.log(Level.WARNING, "Server \"" + server.getServerName() + "\" stopped or frozen! Shutting down.");
+                    shutdown = true;
+                }
+                if (!main.managedServers.containsValue(server)) {
+                    shutdown = true;
+                }
+                frozen++;
+            } else if (frozen > 0) {
+                frozen--;
+            }
+
+            try {
+                proc.exitValue();
+                shutdown = true;
+            } catch (IllegalThreadStateException ignored) {
+                // Process is still running
+            }
+
+            if (shutdown) {
+                break;
+            }
+
+            try {
+                Thread.sleep(10000L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        main.ut.log(server.getServerName() + " shut down.");
+        if (main.managedServers.containsValue(server)) {
+            main.managedServers.remove(server.getServerName());
+            main.ut.log("managedServers: " + main.managedServers.toString());
+        }
+        server.killThreads();
+    }
 }

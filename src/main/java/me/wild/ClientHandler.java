@@ -1,80 +1,100 @@
 package me.wild;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.PrintWriter;
-import java.net.Socket;
-import java.util.logging.Level;
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.SocketChannel;
+import java.util.Iterator;
 
 public class ClientHandler implements Runnable {
-    private Socket socket;
-	private String command;
-    private BufferedReader in;
+    private SocketChannel socketChannel;
+    private Selector selector;
     public boolean running = false;
     public long lastHeartbeat;
     private String clientIP;
-	private Main main;
-	private OutputStream out;
-    
-    public ClientHandler(Main main, Socket socket) throws IOException {
-        this.command = "";
+    private Main main;
+    private ByteBuffer readBuffer;
+
+    public ClientHandler(Main main, SocketChannel socketChannel) throws IOException {
         this.lastHeartbeat = System.currentTimeMillis();
         this.running = true;
         this.main = main;
-        this.socket = socket;
-        this.clientIP = socket.getInetAddress().getHostAddress();
-        this.in = new BufferedReader(new InputStreamReader(this.socket.getInputStream()));
-        this.out = this.socket.getOutputStream();
+        this.socketChannel = socketChannel;
+        this.clientIP = socketChannel.getRemoteAddress().toString();
+        this.readBuffer = ByteBuffer.allocate(1024);
+
+        socketChannel.configureBlocking(false);
+        this.selector = Selector.open();
+        socketChannel.register(selector, SelectionKey.OP_READ);
+
         if (main.connections.containsKey(clientIP)) main.connections.remove(clientIP);
-    	main.connections.put(clientIP, this);
-    	main.ut.log("Control Client Connected. Client: " + clientIP);
+        main.connections.put(clientIP, this);
+        main.ut.log("Control Client Connected. Client: " + clientIP);
     }
-    
+
     @Override
     public void run() {
         while (this.running) {
-        	try {
-				this.command = this.in.readLine();
-			} catch (IOException e) {}
-        	
-            if (this.command != null) {
-			  if (this.command.startsWith("+heartbeat")) {
-			    this.lastHeartbeat = System.currentTimeMillis();
-			  } else {
-				    this.main.ut.log("Received Input: " + this.command);
-				    try {
-				      this.main.cmd.runCmd(this.command);
-				    } catch (IOException e) {
-				      e.printStackTrace();
-				    } 
-			    } 
+            try {
+                if (selector.select() > 0) {
+                    Iterator<SelectionKey> keys = selector.selectedKeys().iterator();
+                    while (keys.hasNext()) {
+                        SelectionKey key = keys.next();
+                        if (key.isReadable()) {
+                            readData((SocketChannel) key.channel());
+                        }
+                        keys.remove();
+                    }
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            try {
+                Thread.sleep(5000); // Wait 500 milliseconds before trying again
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+    }
+
+    private void readData(SocketChannel channel) throws IOException {
+        readBuffer.clear();
+        int bytesRead = channel.read(readBuffer);
+        if (bytesRead > 0) {
+            readBuffer.flip();
+            String command = new String(readBuffer.array(), 0, bytesRead);
+            if (command.startsWith("+heartbeat")) {
+                this.lastHeartbeat = System.currentTimeMillis();
             } else {
-				try {
-				  Thread.sleep(2000L);
-				} catch (InterruptedException e2) {
-				  e2.printStackTrace();
-				} 
-            } 
-        } 
+                this.main.ut.log("Received Input: " + command);
+                try {
+                    this.main.cmd.runCmd(command);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
     }
-    
+
     public boolean checkHeartbeat() {
-		return (System.currentTimeMillis() - lastHeartbeat > 32000L);
+        return (System.currentTimeMillis() - lastHeartbeat > 32000L);
     }
+
     public void close() {
         try {
-          this.socket.shutdownInput();
-          this.socket.shutdownOutput();
-          this.socket.close();
+            this.running = false;
+            socketChannel.close();
+            selector.close();
         } catch (IOException e) {
-          e.printStackTrace();
-        } 
+            e.printStackTrace();
+        }
         this.lastHeartbeat = 1L;
-        this.running = false;
     }
-    public Socket getSocket() {
-        return this.socket;
-      }
+
+    public SocketChannel getSocketChannel() {
+        return this.socketChannel;
+    }
 }
