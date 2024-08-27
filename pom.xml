@@ -3,4 +3,38 @@
   <groupId>me.wild</groupId>
   <artifactId>PSWrapperV2</artifactId>
   <version>0.0.1-SNAPSHOT</version>
+	<dependencies>
+	    <!-- Netty Codec (Provides codec support for various protocols, useful for encoding/decoding messages) -->
+	    <dependency>
+	        <groupId>io.netty</groupId>
+	        <artifactId>netty-codec</artifactId>
+	        <version>4.1.97.Final</version> <!-- Or the latest version -->
+	    </dependency>
+	</dependencies>
+	<build>
+	    <plugins>
+	        <!-- Maven Shade Plugin -->
+	        <plugin>
+	            <groupId>org.apache.maven.plugins</groupId>
+	            <artifactId>maven-shade-plugin</artifactId>
+	            <version>3.3.0</version>
+	            <executions>
+	                <execution>
+	                    <phase>package</phase>
+	                    <goals>
+	                        <goal>shade</goal>
+	                    </goals>
+	                    <configuration>
+	                        <transformers>
+	                            <!-- Add the main class to the JAR's manifest -->
+	                            <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+	                                <mainClass>me.wild.Main</mainClass>
+	                            </transformer>
+	                        </transformers>
+	                    </configuration>
+	                </execution>
+	            </executions>
+	        </plugin>
+	    </plugins>
+	</build>
 </project>

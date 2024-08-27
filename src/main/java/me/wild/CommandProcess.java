@@ -8,6 +8,9 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelFutureListener;
+
 class CommandProcess {
     private Main main;
     private List<String> running = new ArrayList<>();
@@ -18,19 +21,19 @@ class CommandProcess {
         this.commandExecutor = Executors.newFixedThreadPool(5); // Adjust thread pool size as needed
     }
 
-    public void runCmd(String input) throws IOException {
+    public void runCmd(String input, ChannelHandlerContext ctx) throws IOException {
         if (input == null || input.isEmpty()) {
-            this.main.ut.log("input null");
+            ctx.writeAndFlush("Input is null\n");
             return;
         }
 
         String[] args = input.split("\\s");
         if (args.length < 1) {
-            this.main.ut.log("command required");
+            ctx.writeAndFlush("Command required\n");
             return;
         }
         if (args.length < 2) {
-            this.main.ut.log("server required");
+            ctx.writeAndFlush("Server required\n");
             return;
         }
 
@@ -39,38 +42,38 @@ class CommandProcess {
 
         switch (command) {
             case "+command":
-                handleCommand(args, server);
+                handleCommand(args, server, ctx);
                 break;
             case "+restart":
-                handleRestart(server);
+                handleRestart(server, ctx);
                 break;
             case "+stopall":
-                handleStopAll();
+                handleStopAll(ctx);
                 break;
             case "+exit":
-                handleExit();
+                handleExit(ctx);
                 break;
             case "+kill":
-                handleKill(server);
+                handleKill(server, ctx);
                 break;
             case "+stop":
-                handleStop(server);
+                handleStop(server, ctx);
                 break;
             case "+test":
-                this.main.ut.log("Test Success!");
+                ctx.writeAndFlush("Test Success!\n");
                 break;
             case "+start":
-                handleStart(args, server);
+                handleStart(args, server, ctx);
                 break;
             default:
-                this.main.ut.log(String.format("Invalid command! %s", command));
+                ctx.writeAndFlush(String.format("Invalid command! %s\n", command));
                 break;
         }
     }
 
-    private void handleCommand(String[] args, String server) throws IOException {
+    private void handleCommand(String[] args, String server, ChannelHandlerContext ctx) throws IOException {
         if (args.length < 3) {
-            this.main.ut.log("You must specify a command to forward to " + server);
+            ctx.writeAndFlush("You must specify a command to forward to " + server + "\n");
             return;
         }
         if (this.running.contains(server)) {
@@ -82,10 +85,12 @@ class CommandProcess {
             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(manServer.getProcess().getOutputStream()));
             writer.write(str.toString());
             writer.flush();
+        } else {
+            ctx.writeAndFlush("Server is not running!\n");
         }
     }
 
-    private void handleRestart(String server) {
+    private void handleRestart(String server, ChannelHandlerContext ctx) {
         this.main.ut.log("Restarting server: " + server);
         if (this.running.contains(server)) {
             ManagedServer manServer = this.main.managedServers.get(server);
@@ -100,42 +105,53 @@ class CommandProcess {
                 try {
                     Thread.sleep(10000L);
                     this.main.managedServers.put(server, new ManagedServer(cmd, server, path));
+                    ctx.writeAndFlush("Server restarted!\n");
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
+                    ctx.writeAndFlush("Server restart interrupted!\n");
                 }
             });
         } else {
-            this.main.ut.log("Tried to restart " + server + ", but it was not online!");
+            ctx.writeAndFlush("Tried to restart " + server + ", but it was not online!\n");
         }
     }
 
-    private void handleStopAll() {
+    private void handleStopAll(ChannelHandlerContext ctx) {
         this.main.ut.log("Stopping all servers.");
         for (ManagedServer srv : this.main.managedServers.values()) {
             this.main.ut.log("Stopping \"" + srv.getServerName() + "\"");
             srv.stop();
             this.running.remove(srv.getServerName());
         }
+        ctx.writeAndFlush("All servers stopped!\n");
     }
 
-    private void handleExit() {
-        this.main.ut.log("Shutting down PSWrapper.");
-        System.exit(0);
+    private void handleExit(ChannelHandlerContext ctx) {
+        ctx.writeAndFlush("Shutting down PSWrapper.\n").addListener((ChannelFutureListener) future -> {
+            if (future.isSuccess()) {
+                // After successful write and flush, exit the application
+                System.exit(0);
+            } else {
+                // Handle the error if writing failed
+                future.cause().printStackTrace();
+            }
+        });
     }
 
-    private void handleKill(String server) {
+    private void handleKill(String server, ChannelHandlerContext ctx) {
         this.main.ut.log("Killing server: " + server);
         if (this.running.contains(server)) {
             ManagedServer manServer = this.main.managedServers.get(server);
             manServer.getProcess().destroyForcibly();
             this.running.remove(server);
             this.main.managedServers.remove(server);
+            ctx.writeAndFlush("Server killed!\n");
         } else {
-            this.main.ut.log("Tried to kill " + server + ", but it was not online!");
+            ctx.writeAndFlush("Tried to kill " + server + ", but it was not online!\n");
         }
     }
 
-    private void handleStop(String server) {
+    private void handleStop(String server, ChannelHandlerContext ctx) {
         if (this.running.contains(server)) {
             this.main.ut.log("Stopping server: " + server);
             ManagedServer manServer = this.main.managedServers.get(server);
@@ -143,6 +159,7 @@ class CommandProcess {
             this.running.remove(server);
             this.main.managedServers.remove(server);
             this.main.ut.log("Stopped server: " + server);
+            ctx.writeAndFlush("Stopped server: " + server + "\n");
         } else {
             if (this.main.managedServers.get(server) != null) {
                 this.main.ut.log("Stopping server: " + server);
@@ -151,28 +168,31 @@ class CommandProcess {
                 this.running.remove(server);
                 this.main.managedServers.remove(server);
                 this.main.ut.log("Stopped server: " + server);
+                ctx.writeAndFlush("Stopped server: " + server + "\n");
+            } else {
+                ctx.writeAndFlush("That server is not online! " + server + "\n");
             }
-            this.main.ut.log("That server is not online! " + server);
         }
     }
 
-    private void handleStart(String[] args, String server) {
+    private void handleStart(String[] args, String server, ChannelHandlerContext ctx) {
         if (args.length < 6) {
-            this.main.ut.log("Invalid arguments! Arguments required: server name, server path, max memory, starting memory, and jar file name.");
+            ctx.writeAndFlush("Invalid arguments! Arguments required: server name, server path, max memory, starting memory, and jar file name.\n");
             return;
         }
         if (!this.running.contains(server)) {
             this.running.add(server);
             this.main.ut.log("Starting server: " + server);
             this.main.managedServers.put(server, new ManagedServer(server, args[2], args[3], args[4], args[5], args[6], args[7]));
+            ctx.writeAndFlush("Server started!\n");
         } else if (!this.main.managedServers.containsKey(server) && this.running.contains(server)) {
             this.running.remove(server);
             this.main.managedServers.remove(server);
             this.main.ut.log("Starting server: " + server);
             this.main.managedServers.put(server, new ManagedServer(server, args[2], args[3], args[4], args[5], args[6], args[7]));
+            ctx.writeAndFlush("Server started!\n");
         } else {
-            this.main.ut.log("Server is already starting! Server: " + server);
+            ctx.writeAndFlush("Server is already starting! Server: " + server + "\n");
         }
     }
 }
-

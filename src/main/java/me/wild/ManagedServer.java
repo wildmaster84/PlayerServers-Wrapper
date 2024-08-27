@@ -12,11 +12,6 @@ public class ManagedServer implements Runnable {
     private List<String> command;
     private String serverName;
     private String path;
-    private String memx;
-    private String mems;
-    private String port;
-    private String maxPlayers;
-    private String jarFile;
     private ConsoleWatcher console;
     private InputStream errors;
 
@@ -25,12 +20,7 @@ public class ManagedServer implements Runnable {
         this.main = Main.getInstance();
         this.serverName = serverName;
         this.path = path;
-        this.memx = memx;
-        this.mems = mems;
-        this.port = port;
-        this.maxPlayers = maxPlayers;
-        this.jarFile = jarFile;
-        prepare();
+        prepare(serverName, path, port, maxPlayers, mems, memx, jarFile);
         submitToThreadPool();
     }
 
@@ -39,14 +29,13 @@ public class ManagedServer implements Runnable {
         this.command = command;
         this.serverName = serverName;
         this.path = path;
-        this.main.ut.log("command: " + this.command);
-        this.main.ut.log("path: " + this.path);
-        this.procBuild = (new ProcessBuilder(command)).directory(new File(path));
+        this.main = Main.getInstance();
+        this.procBuild = new ProcessBuilder(command).directory(new File(path));
         submitToThreadPool();
     }
 
-    private void prepare() {
-        command = new ArrayList<>();
+    private void prepare(String serverName, String path, String port, String maxPlayers, String mems, String memx, String jarFile) {
+    	command = new ArrayList<>();
         command.add("java");
 
         // Set memory options
@@ -76,24 +65,21 @@ public class ManagedServer implements Runnable {
         }
 
         command.add("--port");
-        command.add(this.port);
+        command.add(port);
         command.add("-o");
         command.add("false");
         command.add("--max-players");
-        command.add(this.maxPlayers);
+        command.add(maxPlayers);
 
         // Log command and path
         main.ut.log("command: " + command);
         main.ut.log("path: " + path);
-
-        // Initialize the process builder
         procBuild = new ProcessBuilder(command).directory(new File(path));
     }
 
     private void startup() {
         try {
             this.proc = this.procBuild.start();
-            this.main.serverProcesses.add(this.proc);
             this.main.ut.log("Starting server within PSWrapperV2");
             BufferedReader reader = new BufferedReader(new InputStreamReader(this.proc.getInputStream()));
             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(this.proc.getOutputStream()));
@@ -117,7 +103,7 @@ public class ManagedServer implements Runnable {
 
     @Override
     public void run() {
-        this.main.ut.log("starting up...");
+        this.main.ut.log("Starting up...");
         startup();
     }
 
@@ -159,18 +145,6 @@ public class ManagedServer implements Runnable {
 
     public void setCommand(List<String> command) {
         this.command = command;
-    }
-
-    public int getMaxMem() {
-        return 0;
-    }
-
-    public int getStartMem() {
-        return 0;
-    }
-
-    public String getJarFile() {
-        return this.jarFile;
     }
 
     public String getServerName() {
