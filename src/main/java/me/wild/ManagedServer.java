@@ -82,8 +82,6 @@ public class ManagedServer implements Runnable {
             this.proc = this.procBuild.start();
             this.main.ut.log("Starting server within PSWrapperV2");
             BufferedReader reader = new BufferedReader(new InputStreamReader(this.proc.getInputStream()));
-            BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(this.proc.getOutputStream()));
-
             this.console = new ConsoleWatcher("in", reader);
             this.errors = this.proc.getErrorStream();
             (new Thread(new ProcessWatcher(this, this.proc))).start();

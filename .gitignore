@@ -4,3 +4,7 @@
 /.settings
 /target
 dependency-reduced-pom.xml
+/target
+/target/classes
+/target/classes/me
+/target/classes/me/wild

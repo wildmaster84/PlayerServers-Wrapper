@@ -183,7 +183,7 @@ class CommandProcess {
         if (!this.running.contains(server)) {
             this.running.add(server);
             this.main.ut.log("Starting server: " + server);
-            this.main.managedServers.put(server, new ManagedServer(server, args[2], args[3], args[4], args[5], args[6], args[7]));
+            this.main.managedServers.put(server, new ManagedServer(server, args[2].replace("\\/", " "), args[3], args[4], args[5], args[6], args[7]));
             ctx.writeAndFlush("Server started!\n");
         } else if (!this.main.managedServers.containsKey(server) && this.running.contains(server)) {
             this.running.remove(server);
