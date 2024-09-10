@@ -1,20 +1,26 @@
 package me.wild;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelHandlerContext;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.net.Socket;
 
-public class ClientHandler {
+public class ClientHandler implements Runnable {
 
     private final Main main;
-    private final Channel channel;
+    private final Socket socket;
+    private BufferedReader in;
+    private BufferedWriter out;
     public boolean running = false;
     public long lastHeartbeat;
     private final String clientIP;
 
-    public ClientHandler(Main main, ChannelHandlerContext ctx) {
+    public ClientHandler(Main main, Socket socket) {
         this.main = main;
-        this.channel = ctx.channel();
-        this.clientIP = ctx.channel().remoteAddress().toString();
+        this.socket = socket;
+        this.clientIP = socket.getRemoteSocketAddress().toString();
         this.running = true;
         this.lastHeartbeat = System.currentTimeMillis();
 
@@ -23,15 +29,36 @@ public class ClientHandler {
         }
         main.connections.put(clientIP, this);
         main.ut.log("Control Client Connected. Client: " + clientIP);
+
+        try {
+            this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            this.out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+        } catch (IOException e) {
+            main.ut.log("Failed to initialize I/O streams for client: " + clientIP);
+        }
     }
 
-    public void runCmd(String command, ChannelHandlerContext ctx) {
+    @Override
+    public void run() {
+        try {
+            String command;
+            while ((command = in.readLine()) != null) {
+                runCmd(command);
+            }
+        } catch (IOException e) {
+            main.ut.log("Error reading from client: " + clientIP);
+        } finally {
+            close();
+        }
+    }
+
+    public void runCmd(String command) {
         if (command.startsWith("+heartbeat")) {
             this.lastHeartbeat = System.currentTimeMillis();
         } else {
             this.main.ut.log("Received Input: " + command);
             try {
-                this.main.cmd.runCmd(command, ctx);  // Pass the command and context to CommandProcess
+                this.main.cmd.runCmd(command, this);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -45,14 +72,19 @@ public class ClientHandler {
     public void close() {
         try {
             this.running = false;
-            channel.close();
-        } catch (Exception e) {
+            socket.close();
+        } catch (IOException e) {
             e.printStackTrace();
         }
         this.lastHeartbeat = 1L;
+        main.ut.log("Control Client Disconnected. Client: " + clientIP);
     }
 
-    public Channel getChannel() {
-        return this.channel;
+    public Socket getSocket() {
+        return this.socket;
+    }
+
+    public BufferedWriter getOut() {
+        return this.out;
     }
 }

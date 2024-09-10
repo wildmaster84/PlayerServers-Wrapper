@@ -5,11 +5,7 @@
   <version>0.0.1-SNAPSHOT</version>
 	<dependencies>
 	    <!-- Netty Codec (Provides codec support for various protocols, useful for encoding/decoding messages) -->
-	    <dependency>
-	        <groupId>io.netty</groupId>
-	        <artifactId>netty-codec</artifactId>
-	        <version>4.1.97.Final</version> <!-- Or the latest version -->
-	    </dependency>
+
 	</dependencies>
 	<build>
 	    <plugins>

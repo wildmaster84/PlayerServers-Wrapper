@@ -1,21 +1,10 @@
 package me.wild;
 
-import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelPipeline;
-import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.handler.codec.LineBasedFrameDecoder;
-import io.netty.handler.codec.string.StringDecoder;
-import io.netty.handler.codec.string.StringEncoder;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.SimpleChannelInboundHandler;
-
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -29,7 +18,7 @@ public class Main {
 
     public HashMap<String, ClientHandler> connections = new HashMap<>();
     public HashMap<String, ManagedServer> managedServers = new HashMap<>();
-    private static ExecutorService threadPool = Executors.newCachedThreadPool();
+    public static ExecutorService threadPool = Executors.newCachedThreadPool();
     public List<Process> serverProcesses = new ArrayList<>();
 
     private static Main server;
@@ -76,30 +65,19 @@ public class Main {
         server.watchAbandon();
     }
 
-    private void startServer(int port) throws InterruptedException {
-        NioEventLoopGroup bossGroup = new NioEventLoopGroup(1);
-        NioEventLoopGroup workerGroup = new NioEventLoopGroup();
-
-        try {
-            ServerBootstrap b = new ServerBootstrap();
-            b.group(bossGroup, workerGroup)
-                    .channel(NioServerSocketChannel.class)
-                    .childHandler(new ChannelInitializer<SocketChannel>() {
-                        @Override
-                        protected void initChannel(SocketChannel ch) {
-                            ChannelPipeline pipeline = ch.pipeline();
-                            pipeline.addLast(new LineBasedFrameDecoder(8192));
-                            pipeline.addLast(new StringDecoder());
-                            pipeline.addLast(new StringEncoder());
-                            pipeline.addLast(new ServerHandler());
-                        }
-                    });
-
-            ChannelFuture f = b.bind(port).sync();
-            f.channel().closeFuture().sync();
-        } finally {
-            bossGroup.shutdownGracefully();
-            workerGroup.shutdownGracefully();
+    private void startServer(int port) {
+        try (ServerSocket serverSocket = new ServerSocket(port)) {
+            ut.log("Server started, listening on port " + port);
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    Socket clientSocket = serverSocket.accept();
+                    threadPool.submit(new ClientHandler(server, clientSocket));
+                } catch (IOException e) {
+                    ut.log(Level.SEVERE, "Error accepting client connection -> " + e);
+                }
+            }
+        } catch (IOException e) {
+            ut.log(Level.SEVERE, "Could not start server on port " + port + " -> " +  e);
         }
     }
 
@@ -171,39 +149,6 @@ public class Main {
 
     public static ExecutorService getThreadPool() {
         return threadPool;
-    }
-
-    private class ServerHandler extends SimpleChannelInboundHandler<String> {
-
-        @Override
-        protected void channelRead0(ChannelHandlerContext ctx, String msg) {
-            String clientIP = ctx.channel().remoteAddress().toString();
-            ClientHandler handler = connections.get(clientIP);
-            if (handler == null) {
-                handler = new ClientHandler(Main.this, ctx);  // Pass ChannelHandlerContext instead of Channel
-                connections.put(clientIP, handler);
-            }
-            handler.runCmd(msg, ctx);  // Pass context to handle the command
-        }
-
-        @Override
-        public void channelActive(ChannelHandlerContext ctx) {
-            String clientIP = ctx.channel().remoteAddress().toString();
-            ut.log("Control Client Connected. Client: " + clientIP);
-        }
-
-        @Override
-        public void channelInactive(ChannelHandlerContext ctx) {
-            String clientIP = ctx.channel().remoteAddress().toString();
-            connections.remove(clientIP);
-            ut.log("Control Client Disconnected. Client: " + clientIP);
-        }
-
-        @Override
-        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-            cause.printStackTrace();
-            ctx.close();
-        }
     }
 
 }
